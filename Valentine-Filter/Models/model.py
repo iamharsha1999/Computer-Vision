@@ -1,4 +1,4 @@
-from keras.layers import Dense, Conv2D, Activation, BatchNormalization, MaxPooling2D, GlobalAveragePooling2D, Dropout
+from keras.layers import Dense, Conv2D, Activation, BatchNormalization, MaxPooling2D, GlobalAveragePooling2D, Dropout, Flatten
 from keras.models import Sequential
 
 def build_model(height = 96, width = 96, depth = 1):
@@ -9,7 +9,7 @@ def build_model(height = 96, width = 96, depth = 1):
      model.add(Conv2D(32, (5,5), input_shape = (height, width, depth)))
      model.add(Activation('swish'))
      model.add(MaxPooling2D(pool_size = (2,2)))
-     model.add(Dropout(0.1))
+
 
      ## Conv Block 2
      model.add(Conv2D(64, (3,3)))
@@ -17,7 +17,7 @@ def build_model(height = 96, width = 96, depth = 1):
      model.add(MaxPooling2D(pool_size = (2,2)))
      model.add(Dropout(0.2))
 
-     ## Conv Block 3
+     # Conv Block 3
      model.add(Conv2D(128, (3,3)))
      model.add(Activation('swish'))
      model.add(MaxPooling2D(pool_size = (2,2)))
@@ -30,7 +30,7 @@ def build_model(height = 96, width = 96, depth = 1):
      model.add(Dropout(0.3))
 
      ## Squeeze the extracted features into single dimension
-     model.add(GlobalAveragePooling2D())
+     model.add(Flatten())
 
      # Introduce FC Layers
      model.add(Dense(64))

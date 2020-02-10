@@ -27,14 +27,14 @@ tb = TensorBoard(log_dir = 'TB_logs/logs/{}'.format(time()))
 
 
 # Compile the Model
-model.compile(optimizer = 'adadelta', loss = 'mean_absolute_error', metrics = ['accuracy'])
+model.compile(optimizer = 'adam', loss = 'mean_squared_error', metrics = ['accuracy'])
 
 # Load the data
 x_train, y_train = load_data()
 
 # Creating Checkpoints
-filepath = 'Weights/weights-improvement-{epoch:02d}-{val_accuracy:.2f}.hdf5'
-checkpoint = ModelCheckpoint(filepath, monitor='val_accuracy', verbose=1, save_best_only=True, mode='max')
+filepath = 'Weights/weights-improvement-wlswish-{epoch:02d}-{val_loss:.2f}.hdf5'
+checkpoint = ModelCheckpoint(filepath, monitor='val_accuracy', verbose=1, save_best_only=False, mode='max')
 callbacks_list = [checkpoint]
 
 # Train the model

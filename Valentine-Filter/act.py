@@ -1,10 +1,12 @@
-from Models import build_model
 import cv2
-import  numpy as np
-from keras.utils.generic_utils import get_custom_objects
+import numpy as np
+from Models import build_model
 from keras.layers import Activation
 import keras.backend as K
-## Define Swish Fucntion
+from keras.utils import get_custom_objects
+import timeit
+
+
 class Swish(Activation):
 
     def __init__(self, activation, **kwargs):
@@ -13,95 +15,73 @@ class Swish(Activation):
 
 def swish(x):
     return K.sigmoid(x) * x
-
 get_custom_objects().update({'swish': Swish(swish)})
 
-## Build the model and load the weights
-weight_path = 'Weights/weights-improvement-85-0.70.hdf5'
 model = build_model()
-model.load_weights(weight_path)
-
+model.load_weights('Weights/weights-improvement-fswish-100-0.00.hdf5')
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
-# Define the upper and lower boundaries for a color to be considered "Blue"
-blueLower = np.array([100, 60, 60])
-blueUpper = np.array([140, 255, 255])
 
-# Define a 5x5 kernel for erosion and dilation
-kernel = np.ones((5, 5), np.uint8)
+kernel=np.ones((5,5),np.uint8)
+filters='Sunglasses.png'
 
-
-
-# Load the video - O for webcam input
-camera = cv2.VideoCapture(0)
+camera=cv2.VideoCapture(0)
 
 while True:
+    start = timeit.timeit()
+    (grabbed,frame)=camera.read()
+    frame=cv2.flip(frame,1)
+    frame2=np.copy(frame)
+    hsv=cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
+    gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
 
-    (grabbed, img) = camera.read()
-    img = cv2.flip(img, 1)
 
+    faces=face_cascade.detectMultiScale(gray,1.25,6)
 
-    # Convert to GRAY for convenience
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Detect faces using the haar cascade object
-    faces = face_cascade.detectMultiScale(gray, 1.25, 6)
-
-    # For each detected face using tha Haar cascade
     for (x,y,w,h) in faces:
-        roi_gray = gray[y:y+h, x:x+w]
-        img_copy = np.copy(img)
-        img_copy_1 = np.copy(img)
-        roi_color = img_copy_1[y:y+h, x:x+w]
+    	gray_face=gray[y:y+h,x:x+w]
+    	color_face=frame[y:y+h,x:x+w]
 
-        width_original = roi_gray.shape[1]      # Width of region where face is detected
-        height_original = roi_gray.shape[0]     # Height of region where face is detected
-        img_gray = cv2.resize(roi_gray, (96, 96))       # Resize image to size 96x96
-        img_gray = img_gray/255         # Normalize the image data
+    	gray_normalized=gray_face/255
 
-        img_model = np.reshape(img_gray, (1,96,96,1))   # Model takes input of shape = [batch_size, height, width, no. of channels]
-        keypoints = model.predict(img_model)[0]         # Predict keypoints for the current input
+    	original_shape=gray_face.shape
+    	face_resized=cv2.resize(gray_normalized,(96,96),interpolation=cv2.INTER_AREA)
+    	face_resized_copy=face_resized.copy()
+    	face_resized=face_resized.reshape(1,96,96,1)
 
-        # Keypoints are saved as (x1, y1, x2, y2, ......)
-        x_coords = keypoints[0::2]      # Read alternate elements starting from index 0
-        y_coords = keypoints[1::2]      # Read alternate elements starting from index 1
+    	keypoints=model.predict(face_resized)
 
-        x_coords_denormalized = (x_coords+0.5)*width_original       # Denormalize x-coordinate
-        y_coords_denormalized = (y_coords+0.5)*height_original      # Denormalize y-coordinate
+    	keypoints=keypoints*48+48
 
-        for i in range(len(x_coords)):          # Plot the keypoints at the x and y coordinates
-            cv2.circle(roi_color, (x_coords_denormalized[i], y_coords_denormalized[i]), 2, (255,255,0), -1)
+    	face_resized_color=cv2.resize(color_face,(96,96),interpolation=cv2.INTER_AREA)
+    	face_resized_color2=np.copy(face_resized_color)
 
-        # Particular keypoints for scaling and positioning of the filter
-        left_lip_coords = (int(x_coords_denormalized[11]), int(y_coords_denormalized[11]))
-        right_lip_coords = (int(x_coords_denormalized[12]), int(y_coords_denormalized[12]))
-        top_lip_coords = (int(x_coords_denormalized[13]), int(y_coords_denormalized[13]))
-        bottom_lip_coords = (int(x_coords_denormalized[14]), int(y_coords_denormalized[14]))
-        left_eye_coords = (int(x_coords_denormalized[3]), int(y_coords_denormalized[3]))
-        right_eye_coords = (int(x_coords_denormalized[5]), int(y_coords_denormalized[5]))
-        brow_coords = (int(x_coords_denormalized[6]), int(y_coords_denormalized[6]))
+    	points=[]
+    	for i,co in enumerate(keypoints[0][0::2]):
+    		points.append((co,keypoints[0][1::2][i]))
 
-        # Scale filter according to keypoint coordinates
-        glasses_width = right_eye_coords[0] - left_eye_coords[0]
+    	#Add filter
+    	sunglasses=cv2.imread(filters,cv2.IMREAD_UNCHANGED)
+    	sunglass_width = int((points[7][0]-points[9][0])*1.2)
+    	sunglass_height = int((points[10][1]-points[8][1])/1.1)
+    	sunglass_resized = cv2.resize(sunglasses, (sunglass_width, sunglass_height), interpolation = cv2.INTER_CUBIC)
+    	transparent_region = sunglass_resized[:,:,:3] != 0
+    	face_resized_color[int(points[9][1]):int(points[9][1])+sunglass_height, int(points[9][0]):int(points[9][0])+sunglass_width,:][transparent_region] = sunglass_resized[:,:,:3][transparent_region]
 
-        img_copy = cv2.cvtColor(img_copy, cv2.COLOR_BGR2BGRA) # Used for transparency overlay of filter using the alpha channel
+    	frame[y:y+h, x:x+w] = cv2.resize(face_resized_color, original_shape, interpolation = cv2.INTER_CUBIC)
 
-        # Glasses filter
-        glasses = cv2.imread('images-removebg-preview.png', -1)
-        glasses = cv2.resize(glasses,  None, (glasses_width*2,150))
-        gw,gh,gc = glasses.shape
+    	for keypoint in points:
+    		cv2.circle(face_resized_color2, keypoint, 1, (0,255,0), 1)
 
-        for i in range(0,gw):       # Overlay the filter based on the alpha channel
-            for j in range(0,gh):
-                if glasses[i,j][3] != 0:
-                    img_copy[brow_coords[1]+i+y-50, left_eye_coords[0]+j+x-60] = glasses[i,j]
+    	frame2[y:y+h, x:x+w] = cv2.resize(face_resized_color2, original_shape, interpolation = cv2.INTER_CUBIC)
 
-        img_copy = cv2.cvtColor(img_copy, cv2.COLOR_BGRA2BGR)       # Revert back to BGR
+    	cv2.imshow("Selfie Filters", frame)
+    	cv2.imshow("Facial Keypoints", frame2)
 
-        cv2.imshow('Output',img_copy)           # Output with the filter placed on the face
-        cv2.imshow('Keypoints predicted',img_copy_1)        # Place keypoints on the webcam input
+    end = timeit.timeit()
+    print(end - start)
+    if cv2.waitKey(1) & 0xFF==ord("q"):
+    	break
 
-    cv2.imshow('Webcam',img)        # Original webcame Input
-
-    if cv2.waitKey(1) & 0xFF == ord("e"):   # If 'e' is pressed, stop reading and break the loop
-        break
+camera.release()
+cv2.destroyAllWindows()
