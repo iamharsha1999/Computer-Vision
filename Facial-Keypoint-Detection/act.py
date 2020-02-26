@@ -23,7 +23,7 @@ face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
 
 kernel=np.ones((5,5),np.uint8)
-filters='Sunglasses.png'
+filters='Image_Filters/gettyimages-186840067-612x612-removebg-preview (1).png'
 
 camera=cv2.VideoCapture(0)
 
